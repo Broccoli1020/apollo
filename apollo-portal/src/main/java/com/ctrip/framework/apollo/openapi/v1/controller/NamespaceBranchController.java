@@ -1,8 +1,20 @@
-package com.ctrip.framework.apollo.openapi.v1.controller;
-
-/**
- * Created by qianjie on 8/10/17.
+/*
+ * Copyright 2024 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
+package com.ctrip.framework.apollo.openapi.v1.controller;
 
 import com.ctrip.framework.apollo.common.dto.GrayReleaseRuleDTO;
 import com.ctrip.framework.apollo.common.dto.NamespaceDTO;
@@ -65,18 +77,17 @@ public class NamespaceBranchController {
         return OpenApiBeanUtils.transformFromNamespaceBO(namespaceBO);
     }
 
-    @PreAuthorize(value = "@consumerPermissionValidator.hasCreateNamespacePermission(#request, #appId)")
+    @PreAuthorize(value = "@consumerPermissionValidator.hasCreateNamespacePermission(#appId)")
     @PostMapping(value = "/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/branches")
     public OpenNamespaceDTO createBranch(@PathVariable String appId,
                                          @PathVariable String env,
                                          @PathVariable String clusterName,
                                          @PathVariable String namespaceName,
-                                         @RequestParam("operator") String operator,
-                                         HttpServletRequest request) {
+                                         @RequestParam("operator") String operator) {
         RequestPrecondition.checkArguments(!StringUtils.isContainEmpty(operator),"operator can not be empty");
 
         if (userService.findByUserId(operator) == null) {
-            throw new BadRequestException("operator " + operator + " not exists");
+            throw BadRequestException.userNotExists(operator);
         }
 
         NamespaceDTO namespaceDTO = namespaceBranchService.createBranch(appId, Env.valueOf(env.toUpperCase()), clusterName, namespaceName, operator);
@@ -86,23 +97,22 @@ public class NamespaceBranchController {
         return BeanUtils.transform(OpenNamespaceDTO.class, namespaceDTO);
     }
 
-    @PreAuthorize(value = "@consumerPermissionValidator.hasModifyNamespacePermission(#request, #appId, #namespaceName, #env)")
+    @PreAuthorize(value = "@consumerPermissionValidator.hasModifyNamespacePermission(#appId, #env, #clusterName, #namespaceName)")
     @DeleteMapping(value = "/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/branches/{branchName}")
     public void deleteBranch(@PathVariable String appId,
                              @PathVariable String env,
                              @PathVariable String clusterName,
                              @PathVariable String namespaceName,
                              @PathVariable String branchName,
-                             @RequestParam("operator") String operator,
-                             HttpServletRequest request) {
+                             @RequestParam("operator") String operator) {
         RequestPrecondition.checkArguments(!StringUtils.isContainEmpty(operator),"operator can not be empty");
 
         if (userService.findByUserId(operator) == null) {
-            throw new BadRequestException("operator " + operator + " not exists");
+            throw BadRequestException.userNotExists(operator);
         }
 
-        boolean canDelete = consumerPermissionValidator.hasReleaseNamespacePermission(request, appId, namespaceName, env) ||
-            (consumerPermissionValidator.hasModifyNamespacePermission(request, appId, namespaceName, env) &&
+        boolean canDelete = consumerPermissionValidator.hasReleaseNamespacePermission(appId, env, clusterName, namespaceName) ||
+            (consumerPermissionValidator.hasModifyNamespacePermission(appId, env, clusterName, namespaceName) &&
                 releaseService.loadLatestRelease(appId, Env.valueOf(env), branchName, namespaceName) == null);
 
         if (!canDelete) {
@@ -127,17 +137,16 @@ public class NamespaceBranchController {
         return OpenApiBeanUtils.transformFromGrayReleaseRuleDTO(grayReleaseRuleDTO);
     }
 
-    @PreAuthorize(value = "@consumerPermissionValidator.hasModifyNamespacePermission(#request, #appId, #namespaceName, #env)")
+    @PreAuthorize(value = "@consumerPermissionValidator.hasModifyNamespacePermission(#appId, #env, #clusterName, #namespaceName)")
     @PutMapping(value = "/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/branches/{branchName}/rules")
     public void updateBranchRules(@PathVariable String appId, @PathVariable String env,
                                   @PathVariable String clusterName, @PathVariable String namespaceName,
                                   @PathVariable String branchName, @RequestBody OpenGrayReleaseRuleDTO rules,
-                                  @RequestParam("operator") String operator,
-                                  HttpServletRequest request) {
+                                  @RequestParam("operator") String operator) {
         RequestPrecondition.checkArguments(!StringUtils.isContainEmpty(operator),"operator can not be empty");
 
         if (userService.findByUserId(operator) == null) {
-            throw new BadRequestException("operator " + operator + " not exists");
+            throw BadRequestException.userNotExists(operator);
         }
 
         rules.setAppId(appId);

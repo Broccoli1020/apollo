@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.portal.util;
 
 import com.ctrip.framework.apollo.core.ConfigConsts;
@@ -50,6 +66,10 @@ public class RoleUtils {
     return STRING_JOINER.join(RoleType.MODIFY_NAMESPACE, appId, namespaceName, env);
   }
 
+  public static String buildModifyNamespacesInClusterRoleName(String appId, String env, String clusterName) {
+    return STRING_JOINER.join(RoleType.MODIFY_NAMESPACES_IN_CLUSTER, appId, env, clusterName);
+  }
+
   public static String buildModifyDefaultNamespaceRoleName(String appId) {
     return STRING_JOINER.join(RoleType.MODIFY_NAMESPACE, appId, ConfigConsts.NAMESPACE_APPLICATION);
   }
@@ -62,12 +82,20 @@ public class RoleUtils {
     return STRING_JOINER.join(RoleType.RELEASE_NAMESPACE, appId, namespaceName, env);
   }
 
+  public static String buildReleaseNamespacesInClusterRoleName(String appId, String env, String clusterName) {
+    return STRING_JOINER.join(RoleType.RELEASE_NAMESPACES_IN_CLUSTER, appId, env, clusterName);
+  }
+
   public static String buildNamespaceRoleName(String appId, String namespaceName, String roleType) {
     return buildNamespaceRoleName(appId, namespaceName, roleType, null);
   }
 
   public static String buildNamespaceRoleName(String appId, String namespaceName, String roleType, String env) {
     return STRING_JOINER.join(roleType, appId, namespaceName, env);
+  }
+
+  public static String buildClusterRoleName(String appId, String env, String clusterName, String roleType) {
+    return STRING_JOINER.join(roleType, appId, env, clusterName);
   }
 
   public static String buildReleaseDefaultNamespaceRoleName(String appId) {
@@ -80,6 +108,10 @@ public class RoleUtils {
 
   public static String buildNamespaceTargetId(String appId, String namespaceName, String env) {
     return STRING_JOINER.join(appId, namespaceName, env);
+  }
+
+  public static String buildClusterTargetId(String appId, String env, String clusterName) {
+    return STRING_JOINER.join(appId, env, clusterName);
   }
 
   public static String buildDefaultNamespaceTargetId(String appId) {

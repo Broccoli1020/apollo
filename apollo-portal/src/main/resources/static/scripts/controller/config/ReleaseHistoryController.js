@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 release_history_module.controller("ReleaseHistoryController",
     ['$scope', '$location', '$translate', 'AppUtil', 'EventManager',
         'ReleaseService', 'ConfigService', 'PermissionService', 'ReleaseHistoryService', releaseHistoryController
@@ -37,6 +53,7 @@ function releaseHistoryController($scope, $location, $translate, AppUtil, EventM
     $scope.switchConfigViewType = switchConfigViewType;
     $scope.findReleaseHistory = findReleaseHistory;
     $scope.showText = showText;
+    $scope.showTextDiff = showTextDiff;
 
     EventManager.subscribe(EventManager.EventType.REFRESH_RELEASE_HISTORY, function () {
         location.reload(true);
@@ -191,8 +208,16 @@ function releaseHistoryController($scope, $location, $translate, AppUtil, EventM
     }
 
     function showText(text) {
+        $scope.enableTextDiff = false;
         $scope.text = text;
         AppUtil.showModal("#showTextModal");
+    }
+
+    function showTextDiff(oldStr, newStr) {
+        $scope.enableTextDiff = true;
+        $scope.oldStr = oldStr;
+        $scope.newStr = newStr;
+        AppUtil.showModal('#showTextModal');
     }
 }
 
