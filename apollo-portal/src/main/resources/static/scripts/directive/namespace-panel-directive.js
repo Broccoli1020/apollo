@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 directive_module.directive('apollonspanel', directive);
 
 function directive($window, $translate, toastr, AppUtil, EventManager, PermissionService, NamespaceLockService,
@@ -48,7 +64,10 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
             scope.refreshNamespace = refreshNamespace;
             scope.switchView = switchView;
             scope.toggleItemSearchInput = toggleItemSearchInput;
+            scope.toggleHistorySearchInput = toggleHistorySearchInput;
             scope.searchItems = searchItems;
+            scope.resetSearchItems = resetSearchItems;
+            scope.searchHistory = searchHistory;
             scope.loadCommitHistory = loadCommitHistory;
             scope.toggleTextEditStatus = toggleTextEditStatus;
             scope.goToSyncPage = goToSyncPage;
@@ -67,8 +86,11 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
             scope.mergeAndPublish = mergeAndPublish;
             scope.addRuleItem = addRuleItem;
             scope.editRuleItem = editRuleItem;
+            scope.formatContent = formatContent;
 
             scope.deleteNamespace = deleteNamespace;
+            scope.exportNamespace = exportNamespace;
+            scope.importNamespace = importNamespace;
 
             var subscriberId = EventManager.subscribe(EventManager.EventType.UPDATE_GRAY_RELEASE_RULES,
                 function (context) {
@@ -112,7 +134,9 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                 namespace.isBranch = false;
                 namespace.displayControl = {
                     currentOperateBranch: 'master',
-                    showSearchInput: false,
+                    showSearchInput: namespace.showSearchItemInput,
+                    searchItemKey: namespace.searchItemKey,
+                    showHistorySearchInput: false,
                     show: scope.showBody
                 };
                 scope.showNamespaceBody = namespace.showNamespaceBody ? true : scope.showBody;
@@ -134,6 +158,7 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                 initPermission(namespace);
                 initLinkedNamespace(namespace);
                 loadInstanceInfo(namespace);
+                initSearchItemInput(namespace);
 
                 function initNamespaceBranch(namespace) {
                     NamespaceBranchService.findNamespaceBranch(scope.appId, scope.env,
@@ -252,20 +277,33 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                                 )
                                     .then(function (result) {
                                         //branch has same permission
-                                        namespace.hasModifyPermission = result.hasPermission;
+                                        namespace.hasModifyPermission = namespace.hasModifyPermission || result.hasPermission;
                                         if (namespace.branch) {
-                                            namespace.branch.hasModifyPermission = result.hasPermission;
+                                            namespace.branch.hasModifyPermission = namespace.branch.hasModifyPermission || result.hasPermission;
                                         }
                                     });
                             }
                             else {
                                 //branch has same permission
-                                namespace.hasModifyPermission = result.hasPermission;
+                                namespace.hasModifyPermission = namespace.hasModifyPermission || result.hasPermission;
                                 if (namespace.branch) {
-                                    namespace.branch.hasModifyPermission = result.hasPermission;
+                                    namespace.branch.hasModifyPermission = namespace.branch.hasModifyPermission || result.hasPermission;
                                 }
                             }
                         });
+
+                    PermissionService.has_modify_cluster_ns_permission(
+                        scope.appId,
+                        scope.env,
+                        scope.cluster
+                    ).then(function (result) {
+                        if (result.hasPermission) {
+                            namespace.hasModifyPermission = namespace.hasModifyPermission || result.hasPermission;
+                            if (namespace.branch) {
+                                namespace.branch.hasModifyPermission = namespace.branch.hasModifyPermission || result.hasPermission;
+                            }
+                        }
+                    });
 
                     PermissionService.has_release_namespace_permission(
                         scope.appId,
@@ -279,24 +317,38 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                                 )
                                     .then(function (result) {
                                         //branch has same permission
-                                        namespace.hasReleasePermission = result.hasPermission;
+                                        namespace.hasReleasePermission ||= result.hasPermission;
                                         if (namespace.branch) {
-                                            namespace.branch.hasReleasePermission = result.hasPermission;
+                                            namespace.branch.hasReleasePermission ||= result.hasPermission;
                                         }
                                     });
                             }
                             else {
                                 //branch has same permission
-                                namespace.hasReleasePermission = result.hasPermission;
+                                namespace.hasReleasePermission ||= result.hasPermission;
                                 if (namespace.branch) {
-                                    namespace.branch.hasReleasePermission = result.hasPermission;
+                                    namespace.branch.hasReleasePermission ||= result.hasPermission;
                                 }
                             }
                         });
+
+                    PermissionService.has_release_cluster_ns_permission(
+                        scope.appId,
+                        scope.env,
+                        scope.cluster
+                    ).then(function (result) {
+                        if (result.hasPermission) {
+                            namespace.hasReleasePermission ||= result.hasPermission;
+                            if (namespace.branch) {
+                                namespace.branch.hasReleasePermission ||= result.hasPermission;
+                            }
+                        }
+                    });
+
                 }
 
                 function initLinkedNamespace(namespace) {
-                    if (!namespace.isPublic || !namespace.isLinkedNamespace || namespace.format != 'properties') {
+                    if (!namespace.isPublic || !namespace.isLinkedNamespace) {
                         return;
                     }
                     //load public namespace
@@ -328,9 +380,16 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                                     publicNamespace.hasPublishedItem = true;
                                 }
                             });
-
+                            publicNamespace.isPropertiesFormat = publicNamespace.format == 'properties';
+                            loadParentNamespaceText(namespace);
                         });
+                }
 
+                function loadParentNamespaceText(namespace){
+                    namespace.publicNamespaceText = "";
+                    if(namespace.isLinkedNamespace) {
+                        namespace.publicNamespaceText = parseModel2Text(namespace.publicNamespace)
+                    }
                 }
 
                 function initNamespaceViewName(namespace) {
@@ -373,6 +432,12 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
 
                 }
 
+                function initSearchItemInput(namespace) {
+                    if (namespace.displayControl.searchItemKey) {
+                        namespace.searchKey = namespace.displayControl.searchItemKey;
+                        searchItems(namespace);
+                    }
+                }
             }
 
             function initNamespaceInstancesCount(namespace) {
@@ -450,6 +515,7 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                     scope.env,
                     namespace.baseInfo.clusterName,
                     namespace.baseInfo.namespaceName,
+                    namespace.HistorySearchKey,
                     namespace.commitPage,
                     size)
                     .then(function (result) {
@@ -620,6 +686,8 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                     clientAppId: !branch.parentNamespace.isPublic ? branch.baseInfo.appId : '',
                     clientIpList: [],
                     draftIpList: [],
+                    clientLabelList: [],
+                    draftLabelList: [],
                     isNew: true
                 };
 
@@ -632,7 +700,8 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
 
             function editRuleItem(branch, ruleItem) {
                 ruleItem.isNew = false;
-                ruleItem.draftIpList = _.clone(ruleItem.clientIpList);
+                ruleItem.draftIpList = _.clone(ruleItem.clientIpList) || [];
+                ruleItem.draftLabelList = _.clone(ruleItem.clientLabelList) || [];
                 branch.editingRuleItem = ruleItem;
 
                 EventManager.emit(EventManager.EventType.EDIT_GRAY_RELEASE_RULES, {
@@ -693,6 +762,17 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                 }
             }
 
+            // 格式化
+            function formatContent(namespace) {
+                try {
+                    if (namespace.format === 'json') {
+                        namespace.editText = JSON.stringify(JSON.parse(namespace.editText), null, 4);
+                    }
+                } catch (e) {
+                    toastr.error('format content failed: ' + e.message);
+                }
+            }
+
             function goToSyncPage(namespace) {
                 if (!scope.lockCheck(namespace)) {
                     return false;
@@ -713,6 +793,7 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
             }
 
             function modifyByText(namespace) {
+
                 var model = {
                     configText: namespace.editText,
                     namespaceId: namespace.baseInfo.id,
@@ -775,7 +856,6 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
             }
 
             function parseModel2Text(namespace) {
-
                 if (namespace.items.length == 0) {
                     namespace.itemCnt = 0;
                     return "";
@@ -802,7 +882,7 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                 var itemCnt = 0;
                 namespace.items.forEach(function (item) {
                     //deleted key
-                    if (!item.item.dataChangeLastModifiedBy) {
+                    if (item.isDeleted) {
                         return;
                     }
                     if (item.item.key) {
@@ -837,9 +917,45 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                 namespace.viewItems = items;
             }
 
+            function resetSearchItems(namespace) {
+                namespace.searchKey = '';
+                searchItems(namespace);
+            }
+
+            function toggleHistorySearchInput(namespace) {
+                namespace.displayControl.showHistorySearchInput = !namespace.displayControl.showHistorySearchInput;
+            }
+
+            function searchHistory(namespace) {
+                namespace.commits = [];
+                namespace.commitPage = 0;
+                namespace.hasLoadAllCommit = false;
+                var size = 10;
+                CommitService.find_commits(scope.appId,
+                    scope.env,
+                    namespace.baseInfo.clusterName,
+                    namespace.baseInfo.namespaceName,
+                    namespace.HistorySearchKey,
+                    namespace.commitPage,
+                    size)
+                    .then(function (result) {
+                        if (result.length < size) {
+                            namespace.hasLoadAllCommit = true;
+                        }
+
+                        for (var i = 0; i < result.length; i++) {
+                            //to json
+                            result[i].changeSets = JSON.parse(result[i].changeSets);
+                            namespace.commits.push(result[i]);
+                        }
+                        namespace.commitPage++
+                    }, function (result) {
+                        toastr.error(AppUtil.errorMsg(result), $translate.instant('ApolloNsPanel.LoadingHistoryError'));
+                    });
+            }
+
             //normal release and gray release
             function publish(namespace) {
-
                 if (!namespace.hasReleasePermission) {
                     AppUtil.showModal('#releaseNoPermissionDialog');
                     return;
@@ -886,6 +1002,16 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                 EventManager.emit(EventManager.EventType.PRE_DELETE_NAMESPACE, { namespace: namespace });
             }
 
+            function exportNamespace(namespace) {
+                $window.location.href =
+                    AppUtil.prefixPath() + '/apps/' + scope.appId + "/envs/" + scope.env + "/clusters/" + scope.cluster
+                    + "/namespaces/" + namespace.baseInfo.namespaceName + "/items/export"
+            }
+
+            function importNamespace(namespace) {
+                EventManager.emit(EventManager.EventType.PRE_IMPORT_NAMESPACE, { namespace: namespace });
+            }
+
             //theme: https://github.com/ajaxorg/ace-builds/tree/ba3b91e04a5aa559d56ac70964f9054baa0f4caf/src-min
             scope.aceConfig = {
                 $blockScrolling: Infinity,
@@ -899,6 +1025,12 @@ function directive($window, $translate, toastr, AppUtil, EventManager, Permissio
                         minLines: 10,
                         maxLines: 20
                     })
+                },
+                onChange: function (e) {
+                    if ((e[0].action === 'insert') && (scope.namespace.hasOwnProperty("editText"))) {
+                        scope.namespace.editText = e[1].session.getValue();
+                    }
+
                 }
             };
 
